@@ -1,0 +1,16 @@
+Proxy:
+  Server: localhost
+  Port: 8888
+  BufferSizes:
+    Read: 16384
+    Write: 16384
+  Limits:
+    MaxBodySize: 0 # No Limit
+    MaxConnsPerIP: 0 # No Limit
+  Timeouts:
+    Read: 30s
+    Write: 30s
+    Connect: 15s
+    
+Monitoring:
+  Port: 18080
