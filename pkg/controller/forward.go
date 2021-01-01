@@ -49,7 +49,7 @@ func (h *ForwardHandler) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
 func (h *ForwardHandler) Tunnel(ctx *fasthttp.RequestCtx, deadline time.Time) {
 	// time.ParseDuration is already called during validation, hence an error is impossible at this location
 	t, _ := time.ParseDuration(h.conf.Proxy.Timeouts.Connect)
-	dest, err := net.DialTimeout("tcp", string(ctx.Host()), t)
+	dest, err := fasthttp.DialTimeout(string(ctx.Host()), t)
 	if err != nil {
 		ctx.Error(err.Error(), fasthttp.StatusServiceUnavailable)
 		return
@@ -73,6 +73,7 @@ func (h *ForwardHandler) Tunnel(ctx *fasthttp.RequestCtx, deadline time.Time) {
 }
 
 func (h *ForwardHandler) Proxy(ctx *fasthttp.RequestCtx, deadline time.Time) {
+	// Eventually would make sense to have a pool of fasthttp clients, although the target upstream are unlikely always the same
 	c := fasthttp.Client{}
 
 	resp := fasthttp.AcquireResponse()
@@ -80,6 +81,7 @@ func (h *ForwardHandler) Proxy(ctx *fasthttp.RequestCtx, deadline time.Time) {
 
 	err := c.DoDeadline(&ctx.Request, resp, deadline)
 	if err != nil {
+		log.Warnf("Received %s during forwarding", err)
 		ctx.Error(err.Error(), fasthttp.StatusServiceUnavailable)
 		return
 	}
@@ -101,7 +103,10 @@ func (h *ForwardHandler) transfer(destination io.Writer, source io.Reader, wg *s
 	buf := h.pool.Get().([]byte)
 	defer clearSlice(h.pool, buf)
 
-	_, _ = io.CopyBuffer(destination, source, buf)
+	_, err := io.CopyBuffer(destination, source, buf)
+	if err != nil {
+		log.Warnf("Received %s during proxying", err)
+	}
 }
 
 func getDomainName(ctx *fasthttp.RequestCtx) (string, string) {
