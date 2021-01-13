@@ -51,7 +51,8 @@ func (h *ForwardHandler) Tunnel(ctx *fasthttp.RequestCtx, deadline time.Time) {
 	t, _ := time.ParseDuration(h.conf.Proxy.Timeouts.Connect)
 	dest, err := fasthttp.DialTimeout(string(ctx.Host()), t)
 	if err != nil {
-		ctx.Error(err.Error(), fasthttp.StatusServiceUnavailable)
+		log.Errorf("tunnel: failed to reach target host %s due to %s", ctx.Host(), err)
+		ctx.Error("could not reach upstream server", fasthttp.StatusServiceUnavailable)
 		return
 	}
 
