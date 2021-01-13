@@ -40,22 +40,16 @@ func init() {
 	switch logLevel {
 	case 0:
 		log.SetLevel(log.DebugLevel)
-		break
 	case 1:
 		log.SetLevel(log.InfoLevel)
-		break
 	case 2:
 		log.SetLevel(log.WarnLevel)
-		break
 	case 3:
 		log.SetLevel(log.ErrorLevel)
-		break
 	case 4:
 		log.SetLevel(log.ErrorLevel)
-		break
 	case 5:
 		log.SetLevel(log.FatalLevel)
-		break
 	}
 
 	log.Infof("Spediteur will be using config at %s and Log Level is set to %d", confPath, logLevel)
@@ -125,7 +119,7 @@ func main() {
 
 	conf, err := config.New(file)
 	if err != nil {
-		log.Fatalf("Failed while parsing provided config due to %s", confPath, err)
+		log.Fatalf("Failed while parsing provided config due to %s", err)
 	}
 
 	server := newServer(conf)
