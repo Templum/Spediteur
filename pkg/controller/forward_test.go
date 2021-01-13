@@ -2,16 +2,22 @@ package controller
 
 import (
 	"context"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
 	"testing"
 
 	"github.com/Templum/Spediteur/pkg/config"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttputil"
 )
+
+func init() {
+	log.SetOutput(ioutil.Discard)
+}
 
 func TestForwardHandler_HandleFastHTTP(t *testing.T) {
 	conf := config.ForwardProxyConfig{Proxy: config.Proxy{Timeouts: config.Timeouts{Connect: "30s", Write: "30s"}, BufferSizes: config.BufferSizes{Read: 1024, Write: 1024}}}
