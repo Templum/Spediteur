@@ -16,7 +16,7 @@ func NewForwardHandler(conf *config.ForwardProxyConfig) *ForwardHandler {
 	var pool = sync.Pool{
 		New: func() interface{} {
 			buf := make([]byte, conf.Proxy.BufferSizes.Read)
-			return buf
+			return &buf
 		},
 	}
 
@@ -91,20 +91,20 @@ func (h *ForwardHandler) Proxy(ctx *fasthttp.RequestCtx, deadline time.Time) {
 	ctx.SetBody(resp.Body())
 }
 
-func clearSlice(pool *sync.Pool, b []byte) {
-	b = b[:cap(b)]
+func clearSlice(pool *sync.Pool, b *[]byte) {
+	// CLearing slice while protecting length
+	*b = (*b)[:cap(*b)]
 
-	//lint:ignore SA6002 as we are using slices here
 	pool.Put(b)
 }
 
 func (h *ForwardHandler) transfer(destination io.Writer, source io.Reader, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	buf := h.pool.Get().([]byte)
+	buf := h.pool.Get().(*[]byte)
 	defer clearSlice(h.pool, buf)
 
-	_, err := io.CopyBuffer(destination, source, buf)
+	_, err := io.CopyBuffer(destination, source, *buf)
 	if err != nil {
 		log.Warnf("Received %s during proxying", err)
 	}
