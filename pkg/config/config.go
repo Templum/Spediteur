@@ -69,6 +69,7 @@ func New(reader io.ReadCloser) (*ForwardProxyConfig, error) {
 		return nil, err
 	}
 
+	fillDefaults(&conf)
 	return &conf, nil
 }
 
@@ -108,4 +109,23 @@ func validatePorts(conf ForwardProxyConfig) error {
 	}
 
 	return nil
+}
+
+// fillDefaults ensures that the fields of the config that are unspecified by the user are set to defaults
+func fillDefaults(conf *ForwardProxyConfig) {
+	// First check for buffer sizes
+	if conf.Proxy.BufferSizes.Read <= 0 {
+		// This is the default value of fasthttp
+		conf.Proxy.BufferSizes.Read = 4096
+	}
+
+	if conf.Proxy.BufferSizes.Write <= 0 {
+		// This is the default value of fasthttp
+		conf.Proxy.BufferSizes.Write = 4096
+	}
+
+	if conf.Proxy.Limits.MaxBodySize <= 0 {
+		// This is the default value of fasthttp
+		conf.Proxy.Limits.MaxBodySize = 4 * 1024 * 1024
+	}
 }
