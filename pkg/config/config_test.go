@@ -100,10 +100,10 @@ func TestNew(t *testing.T) {
 			got, err := New(tt.args.reader)
 
 			if tt.expectErr {
-				assert.NotNil(t, err, "should throw err")
+				assert.Error(t, err, "should throw err")
 				assert.Contains(t, err.Error(), tt.wantMessage, "Did not throw expected error")
 			} else {
-				assert.Nil(t, err, "should not throw error")
+				assert.NoError(t, err, "should not throw error")
 				assert.EqualValues(t, tt.want, got, "did not receive expected value")
 			}
 		})
