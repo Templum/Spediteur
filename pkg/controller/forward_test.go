@@ -38,6 +38,10 @@ func startHTTPTestEndpoint(handler http.Handler) *httptest.Server {
 	return srv
 }
 
+func createUnreachableEndpoint(handler http.Handler) *httptest.Server {
+	return httptest.NewUnstartedServer(handler)
+}
+
 func TestForwardHandler_HandleFastHTTP(t *testing.T) {
 	conf := config.ForwardProxyConfig{Proxy: config.Proxy{Timeouts: config.Timeouts{Connect: "30s", Write: "30s"}, BufferSizes: config.BufferSizes{Read: 1024, Write: 1024}}}
 	proxyURL, _ := url.Parse("http://mysuperproxy:18080")
@@ -96,7 +100,7 @@ func TestForwardHandler_HandleFastHTTP(t *testing.T) {
 			wantedBody:       []byte("<html><body>Hello World!</body></html>"),
 		},
 		{
-			name: "[connect request] patching from unsuccessful returning endpoint with no body", method: http.MethodPut, body: nil,
+			name: "[connect request] patching from unsuccessful returning endpoint with no body", method: http.MethodPatch, body: nil,
 			upstream: func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(500)
 				_, _ = w.Write(nil)
@@ -104,6 +108,15 @@ func TestForwardHandler_HandleFastHTTP(t *testing.T) {
 			expectErr:        false,
 			wantedStatusCode: 500,
 			wantedBody:       []byte{},
+		},
+		{
+			name: "[connect request] getting connection refusing endpoint", method: http.MethodGet, body: nil,
+			upstream: func(w http.ResponseWriter, r *http.Request) {
+				conn, _, _ := w.(http.Hijacker).Hijack()
+				conn.Close() // Connection Refuse/Drop
+			},
+			expectErr:     true,
+			wantedMessage: "EOF",
 		},
 	}
 
@@ -205,7 +218,7 @@ func TestForwardHandler_HandleFastHTTP(t *testing.T) {
 			wantedBody:       []byte("<html><body>Hello World!</body></html>"),
 		},
 		{
-			name: "[forwarding] patching from unsuccessful returning endpoint with no body", method: http.MethodPut, body: nil,
+			name: "[forwarding] patching from unsuccessful returning endpoint with no body", method: http.MethodPatch, body: nil,
 			upstream: func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(500)
 				_, _ = w.Write(nil)
@@ -213,6 +226,16 @@ func TestForwardHandler_HandleFastHTTP(t *testing.T) {
 			expectErr:        false,
 			wantedStatusCode: 500,
 			wantedBody:       []byte{},
+		},
+		{
+			name: "[forwarding] getting connection refusing endpoint", method: http.MethodGet, body: nil,
+			upstream: func(w http.ResponseWriter, r *http.Request) {
+				conn, _, _ := w.(http.Hijacker).Hijack()
+				conn.Close() // Connection Refuse/Drop
+			},
+			expectErr:        false,
+			wantedStatusCode: 503,
+			wantedBody:       []byte("the server closed connection before returning the first response byte. Make sure the server returns 'Connection: close' response header before closing the connection"),
 		},
 	}
 
@@ -258,4 +281,63 @@ func TestForwardHandler_HandleFastHTTP(t *testing.T) {
 
 		})
 	}
+
+	t.Run("[forwarding] getting unreachable endpoint", func(t *testing.T) {
+		h := NewForwardHandler(&conf)
+		ln := fasthttputil.NewInmemoryListener()
+		defer ln.Close()
+
+		go func() {
+			err := fasthttp.Serve(ln, h.HandleFastHTTP)
+			assert.NoError(t, err, "should not throw err")
+		}()
+
+		srv := createUnreachableEndpoint(http.HandlerFunc(http.NotFound))
+		defer srv.Close()
+
+		client := &http.Client{Transport: &http.Transport{
+			Proxy: http.ProxyURL(proxyURL),
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return ln.Dial()
+			},
+		}}
+
+		req, _ := http.NewRequest(http.MethodGet, "https://localhost:15203", bytes.NewReader([]byte{}))
+		resp, err := client.Do(req)
+
+		assert.Nil(t, resp, "should not return a body")
+		assert.Error(t, err, "should throw an error")
+		assert.Contains(t, err.Error(), "Service Unavailable")
+	})
+
+	t.Run("[connect request] getting unreachable endpoint", func(t *testing.T) {
+		h := NewForwardHandler(&conf)
+		ln := fasthttputil.NewInmemoryListener()
+		defer ln.Close()
+
+		go func() {
+			err := fasthttp.Serve(ln, h.HandleFastHTTP)
+			assert.NoError(t, err, "should not throw err")
+		}()
+
+		srv := createUnreachableEndpoint(http.HandlerFunc(http.NotFound))
+		defer srv.Close()
+
+		client := &http.Client{Transport: &http.Transport{
+			Proxy: http.ProxyURL(proxyURL),
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return ln.Dial()
+			},
+		}}
+
+		req, _ := http.NewRequest(http.MethodGet, "http://localhost:15203", bytes.NewReader([]byte{}))
+		resp, err := client.Do(req)
+
+		actualBody, bodyReadErr := ioutil.ReadAll(resp.Body)
+
+		assert.NoError(t, bodyReadErr, "should not fail reading body")
+		assert.NoError(t, err, "should not throw error")
+		assert.EqualValues(t, 503, resp.StatusCode)
+		assert.Contains(t, string(actualBody), "connectex")
+	})
 }
