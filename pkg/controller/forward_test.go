@@ -235,7 +235,7 @@ func TestForwardHandler_HandleFastHTTP(t *testing.T) {
 			},
 			expectErr:        false,
 			wantedStatusCode: 503,
-			wantedBody:       []byte("the server closed connection before returning the first response byte. Make sure the server returns 'Connection: close' response header before closing the connection"),
+			wantedBody:       []byte("could not reach upstream server"),
 		},
 	}
 
@@ -338,6 +338,6 @@ func TestForwardHandler_HandleFastHTTP(t *testing.T) {
 		assert.NoError(t, bodyReadErr, "should not fail reading body")
 		assert.NoError(t, err, "should not throw error")
 		assert.EqualValues(t, 503, resp.StatusCode)
-		assert.Contains(t, string(actualBody), "connectex")
+		assert.Contains(t, string(actualBody), "could not reach upstream server")
 	})
 }

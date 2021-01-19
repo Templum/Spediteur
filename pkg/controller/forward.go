@@ -86,7 +86,7 @@ func (h *ForwardHandler) Proxy(ctx *fasthttp.RequestCtx, deadline time.Time) {
 	err := c.DoDeadline(&ctx.Request, resp, deadline)
 	if err != nil {
 		log.Warnf("Received %s during forwarding", err)
-		ctx.Error(err.Error(), fasthttp.StatusServiceUnavailable)
+		ctx.Error("could not reach upstream server", fasthttp.StatusServiceUnavailable)
 		return
 	}
 
