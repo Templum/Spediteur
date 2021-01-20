@@ -1,0 +1,38 @@
+[
+  {
+    "Version": "78bca411fc37be8c42e2d62f399ff5c9d76a9ed5",
+    "Date": 1611178487,
+    "Tags": [
+      "ref=refs/pull/1/merge"
+    ],
+    "Suites": [
+      {
+        "Goos": "linux",
+        "Goarch": "amd64",
+        "Pkg": "github.com/Templum/Spediteur/pkg/controller",
+        "Benchmarks": [
+          {
+            "Name": "BenchmarkForwardHandler_Forward-2",
+            "Runs": 5062,
+            "NsPerOp": 253485,
+            "Mem": {
+              "BytesPerOp": 42609,
+              "AllocsPerOp": 198,
+              "MBPerSec": 0
+            }
+          },
+          {
+            "Name": "BenchmarkForwardHandler_Tunnel-2",
+            "Runs": 810,
+            "NsPerOp": 1465575,
+            "Mem": {
+              "BytesPerOp": 179958,
+              "AllocsPerOp": 1620,
+              "MBPerSec": 0
+            }
+          }
+        ]
+      }
+    ]
+  }
+]
