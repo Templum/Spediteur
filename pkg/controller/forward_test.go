@@ -42,7 +42,101 @@ func createUnreachableEndpoint(handler http.Handler) *httptest.Server {
 	return httptest.NewUnstartedServer(handler)
 }
 
+// Used to ensure compiler can not optimize loop
+var finalResponse *http.Response
+
+func BenchmarkForwardHandler_Forward(b *testing.B) {
+	b.StopTimer()
+
+	var localResponse *http.Response
+
+	conf := config.ForwardProxyConfig{Proxy: config.Proxy{Timeouts: config.Timeouts{Connect: "30s", Write: "30s"}, BufferSizes: config.BufferSizes{Read: 1024, Write: 1024}}}
+	proxyURL, _ := url.Parse("http://mysuperproxy:18080")
+
+	h := NewForwardHandler(&conf)
+	ln := fasthttputil.NewInmemoryListener()
+	defer ln.Close()
+
+	go func() {
+		err := fasthttp.Serve(ln, h.HandleFastHTTP)
+		if err != nil {
+			b.Failed()
+		}
+	}()
+
+	srv := startHTTPTestEndpoint(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(200)
+		_, _ = io.WriteString(rw, "<html><body>Hello World!</body></html>")
+	}))
+	defer srv.Close()
+
+	client := &http.Client{Transport: &http.Transport{
+		Proxy: http.ProxyURL(proxyURL),
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return ln.Dial()
+		},
+	}}
+
+	req, _ := http.NewRequest(http.MethodGet, srv.URL, bytes.NewReader([]byte{}))
+
+	b.ReportAllocs()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		resp, _ := client.Do(req)
+		localResponse = resp
+	}
+
+	finalResponse = localResponse
+}
+
+func BenchmarkForwardHandler_Tunnel(b *testing.B) {
+	b.StopTimer()
+
+	var localResponse *http.Response
+
+	conf := config.ForwardProxyConfig{Proxy: config.Proxy{Timeouts: config.Timeouts{Connect: "30s", Write: "30s"}, BufferSizes: config.BufferSizes{Read: 1024, Write: 1024}}}
+	proxyURL, _ := url.Parse("http://mysuperproxy:18080")
+
+	h := NewForwardHandler(&conf)
+	ln := fasthttputil.NewInmemoryListener()
+	defer ln.Close()
+
+	go func() {
+		err := fasthttp.Serve(ln, h.HandleFastHTTP)
+		if err != nil {
+			b.Failed()
+		}
+	}()
+
+	srv, certpool := startHTTPSTestEndpoint(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(200)
+		_, _ = io.WriteString(rw, "<html><body>Hello World!</body></html>")
+	}))
+	defer srv.Close()
+
+	client := &http.Client{Transport: &http.Transport{
+		Proxy: http.ProxyURL(proxyURL),
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return ln.Dial()
+		},
+		TLSClientConfig: &tls.Config{RootCAs: certpool}, // This ensures our client works with test server
+	}}
+
+	req, _ := http.NewRequest(http.MethodGet, srv.URL, bytes.NewReader([]byte{}))
+
+	b.ReportAllocs()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		resp, _ := client.Do(req)
+		localResponse = resp
+	}
+
+	finalResponse = localResponse
+}
+
 func TestForwardHandler_HandleFastHTTP(t *testing.T) {
+	t.Parallel()
+
 	conf := config.ForwardProxyConfig{Proxy: config.Proxy{Timeouts: config.Timeouts{Connect: "30s", Write: "30s"}, BufferSizes: config.BufferSizes{Read: 1024, Write: 1024}}}
 	proxyURL, _ := url.Parse("http://mysuperproxy:18080")
 
