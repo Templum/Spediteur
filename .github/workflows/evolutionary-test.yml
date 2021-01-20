@@ -1,0 +1,26 @@
+name: "Evolutionary Tests"
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    # The branches below must be a subset of the branches above
+    branches: [ main ]
+
+jobs:
+  publish:
+    name: Analyze
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout
+      uses: actions/checkout@v2
+
+    - name: gobenchdata publish
+      uses: bobheadxi/gobenchdata@v1
+      with:
+        PRUNE_COUNT: 10
+        PUBLISH: true
+        PUBLISH_BRANCH: gh-pages
+        GIT_COMMIT_MESSAGE: ":bento: Added new benchmark results"
+      env:
+        GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}

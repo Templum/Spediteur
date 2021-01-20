@@ -19,13 +19,19 @@ func NewForwardHandler(conf *config.ForwardProxyConfig) *ForwardHandler {
 			return &buf
 		},
 	}
+	// time.ParseDuration is already called during validation, hence an error is impossible at this location
+	d, _ := time.ParseDuration(conf.Proxy.Timeouts.Write)
+	t, _ := time.ParseDuration(conf.Proxy.Timeouts.Connect)
 
-	return &ForwardHandler{pool: &pool, conf: conf}
+	return &ForwardHandler{pool: &pool, conf: conf, connectTimeout: t, deadlineDuration: d}
 }
 
 type ForwardHandler struct {
 	pool *sync.Pool
 	conf *config.ForwardProxyConfig
+
+	connectTimeout time.Duration
+	deadlineDuration time.Duration
 }
 
 func (h *ForwardHandler) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
@@ -33,9 +39,7 @@ func (h *ForwardHandler) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
 	domain, lookup := getDomainName(ctx)
 	log.Debugf("Domain Lookup yielded %s and %s", domain, lookup)
 
-	// time.ParseDuration is already called during validation, hence an error is impossible at this location
-	deadlineDuration, _ := time.ParseDuration(h.conf.Proxy.Timeouts.Write)
-	deadline := time.Now().Add(deadlineDuration)
+	deadline := time.Now().Add(h.deadlineDuration)
 
 	if ctx.IsConnect() {
 		log.Debugf("received connect for %s", domain)
@@ -47,9 +51,8 @@ func (h *ForwardHandler) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
 }
 
 func (h *ForwardHandler) Tunnel(ctx *fasthttp.RequestCtx, deadline time.Time) {
-	// time.ParseDuration is already called during validation, hence an error is impossible at this location
-	t, _ := time.ParseDuration(h.conf.Proxy.Timeouts.Connect)
-	dest, err := fasthttp.DialTimeout(string(ctx.Host()), t)
+	
+	dest, err := fasthttp.DialTimeout(string(ctx.Host()), h.connectTimeout)
 	if err != nil {
 		log.Errorf("tunnel: failed to reach target host %s due to %s", ctx.Host(), err)
 		ctx.Error("could not reach upstream server", fasthttp.StatusServiceUnavailable)
@@ -83,7 +86,7 @@ func (h *ForwardHandler) Proxy(ctx *fasthttp.RequestCtx, deadline time.Time) {
 	err := c.DoDeadline(&ctx.Request, resp, deadline)
 	if err != nil {
 		log.Warnf("Received %s during forwarding", err)
-		ctx.Error(err.Error(), fasthttp.StatusServiceUnavailable)
+		ctx.Error("could not reach upstream server", fasthttp.StatusServiceUnavailable)
 		return
 	}
 
