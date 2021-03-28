@@ -16,6 +16,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/reuseport"
+
+	_ "go.uber.org/automaxprocs"
 )
 
 var (
